@@ -3,6 +3,7 @@ require "gherkin/formatter/tag_count_formatter"
 
 require "turnip/version"
 require "turnip/dsl"
+require "turnip/spec_extension"
 
 module Turnip
   autoload :Config, 'turnip/config'
@@ -13,6 +14,7 @@ module Turnip
   autoload :Placeholder, 'turnip/placeholder'
   autoload :Table, 'turnip/table'
   autoload :StepModule, 'turnip/step_module'
+  autoload :StepRunner, 'turnip/step_runner'
 
   class << self
     attr_accessor :type
@@ -22,11 +24,12 @@ module Turnip
         describe feature.name, feature.metadata_hash do
 
           feature_tags = feature.active_tags.uniq
+          Turnip::StepRunner.load_steps_for(*feature_tags)
 
           feature.backgrounds.each do |background|
             before do
               background.steps.each do |step|
-                Turnip::StepDefinition.execute(self, Turnip::StepModule.all_steps_for(*feature_tags), step)
+                Turnip::StepRunner.execute_steps(self, background.steps)
               end
             end
           end
@@ -37,9 +40,8 @@ module Turnip
               Turnip::StepModule.modules_for(*scenario_tags).each { |mod| include mod }
 
               it scenario.name do
-                scenario.steps.each do |step|
-                  Turnip::StepDefinition.execute(self, Turnip::StepModule.all_steps_for(*scenario_tags), step)
-                end
+                Turnip::StepRunner.load_steps_for(*scenario_tags)
+                Turnip::StepRunner.execute_steps(self, scenario.steps)
               end
             end
           end
@@ -55,6 +57,7 @@ RSpec::Core::Configuration.send(:include, Turnip::Loader)
 
 RSpec.configure do |config|
   config.pattern << ",**/*.feature"
+  config.include Turnip::SpecExtension, :turnip => true
 end
 
 self.extend Turnip::DSL
